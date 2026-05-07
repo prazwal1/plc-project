@@ -22,7 +22,7 @@ The checker annotates every expression node with a `.type` attribute so the
 TAC generator can emit correct code without re-deriving types.
 """
 
-import ast_nodes as A
+from . import ast_nodes as A
 
 
 class TypeErrorException(Exception):

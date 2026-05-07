@@ -1,68 +1,52 @@
 """
-main.py - Driver for the programming language.
-
-Pipeline:
-  source text
-    -> Lexer      (lexer.py)
-    -> Parser     (parser.py)      -> AST
-    -> TypeChecker (type_checker.py) -> annotated AST
-    -> TACGenerator (tac.py)       -> TAC instruction list
-    -> Interpreter  (interpreter.py) -> output
+main.py - CLI driver for the PL interpreter.
 
 Usage:
-  python main.py <source_file.pl>   -- run a program file
-  python main.py --tac <file>       -- print TAC instead of running
-  python main.py                    -- interactive REPL
+  python main.py <file.pl>          run a program
+  python main.py --tac <file.pl>    print TAC then exit
+  python main.py                    interactive REPL
 """
 
 import sys
-from lexer import PLLexer
-from parser import PLParser
-from type_checker import TypeChecker, TypeErrorException
-from tac import TACGenerator, pretty_tac
-from interpreter import make_interpreter
+from src.lexer import PLLexer
+from src.parser import PLParser
+from src.type_checker import TypeChecker, TypeErrorException
+from src.tac import TACGenerator, pretty_tac
+from src.interpreter import make_interpreter
 
 
-def run_source(src: str, show_tac: bool = False):
+def run_source(src: str, show_tac: bool = False) -> str:
+    """Run source text through the full pipeline. Returns printed output."""
+    import io, contextlib
+
     lexer  = PLLexer()
     parser = PLParser()
 
-    # 1. Parse
-    tokens = lexer.tokenize(src)
-    program = parser.parse(tokens)
+    program = parser.parse(lexer.tokenize(src))
     if program is None or parser.errors:
-        print("Parsing failed.")
-        return
+        return "Parsing failed.\n" + "\n".join(parser.errors)
 
-    # 2. Type check
     checker = TypeChecker()
     try:
         checker.check(program)
     except TypeErrorException as e:
-        print(e)
-        return
+        return str(e)
 
-    # 3. Generate TAC
     gen = TACGenerator()
     instructions = gen.generate(program)
 
     if show_tac:
-        print(pretty_tac(instructions))
-        return
+        return pretty_tac(instructions)
 
-    # 4. Interpret
-    interp = make_interpreter(instructions, program)
-    interp.run()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        interp = make_interpreter(instructions, program)
+        interp.run()
+    return buf.getvalue()
 
 
 def repl():
-    lexer  = PLLexer()
-    parser = PLParser()
-    checker = TypeChecker()
-
-    print("PL interpreter. Type your program, end with a blank line.")
-    print("Commands:  :tac  (print TAC),  :quit  (exit)\n")
-
+    print("PL interpreter  |  blank line to run  |  :tac  |  :quit\n")
     while True:
         lines = []
         try:
@@ -77,12 +61,11 @@ def repl():
             return
 
         src = '\n'.join(lines)
-        show_tac = False
-        if src.strip().startswith(':tac'):
-            show_tac = True
+        show_tac = src.strip().startswith(':tac')
+        if show_tac:
             src = src.strip()[4:].strip()
 
-        run_source(src, show_tac=show_tac)
+        print(run_source(src, show_tac=show_tac), end='')
 
 
 def main():
@@ -93,15 +76,15 @@ def main():
 
     show_tac = '--tac' in args
     files = [a for a in args if not a.startswith('--')]
-
     if not files:
-        print("Usage: python main.py [--tac] <source_file>")
+        print("Usage: python main.py [--tac] <file.pl>")
         sys.exit(1)
 
     with open(files[0]) as f:
         src = f.read()
 
-    run_source(src, show_tac=show_tac)
+    output = run_source(src, show_tac=show_tac)
+    print(output, end='')
 
 
 if __name__ == '__main__':

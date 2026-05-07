@@ -35,7 +35,29 @@ python main.py --tac examples/ex_functions.pl
 
 # Interactive REPL
 python main.py
+
+# Launch the online compiler (browser UI)
+python web/app.py
+# then open http://localhost:5000
 ```
+
+---
+
+## Online Compiler
+
+A browser-based IDE is included in `web/`.  
+Start it with:
+
+```bash
+python web/app.py
+```
+
+Open **http://localhost:5000** to get:
+
+- **Left pane** — CodeMirror editor with syntax highlighting, line numbers, and bracket matching
+- **Right pane** — program output (or TAC dump when *Show TAC* is checked)
+- **Load example** dropdown — loads any file from `examples/` directly into the editor
+- **Ctrl+Enter / Cmd+Enter** — keyboard shortcut to run without leaving the editor
 
 ---
 
@@ -43,14 +65,29 @@ python main.py
 
 ```
 .
-├── lexer.py          # Tokeniser (sly)
-├── parser.py         # LALR(1) parser → AST  (sly)
-├── ast_nodes.py      # AST node dataclasses
-├── type_checker.py   # Static type checker / type inferencer
-├── tac.py            # Three-address code generator
-├── interpreter.py    # TAC interpreter
-├── main.py           # Pipeline driver + REPL
-└── ex_*.pl           # Example programs (one per feature)
+├── src/
+│   ├── ast_nodes.py      # AST node dataclasses
+│   ├── lexer.py          # Tokeniser (sly)
+│   ├── parser.py         # LALR(1) parser → AST (sly)
+│   ├── type_checker.py   # Static type checker / type inferencer
+│   ├── tac.py            # Three-address code generator
+│   └── interpreter.py    # TAC interpreter
+├── web/
+│   ├── app.py            # Flask backend (/run, /example/<name>)
+│   └── templates/
+│       └── index.html    # Single-page compiler UI
+├── examples/
+│   ├── ex_types.pl
+│   ├── ex_arithmetic.pl
+│   ├── ex_boolean.pl
+│   ├── ex_if_else.pl
+│   ├── ex_while.pl
+│   └── ex_functions.pl
+├── tests/
+│   ├── test_complex.py
+│   └── test_errors.py
+├── main.py               # CLI driver + REPL
+└── pyproject.toml
 ```
 
 ---
@@ -116,10 +153,10 @@ Variables have no explicit type annotation. The checker infers the type from the
 The TAC generator flattens the AST into simple instructions with temporaries `t0, t1, …`:
 
 ```
-t0 = 6           # load literal
+t0 = 6
 n = t0
 param n
-t1 = call factorial [1]   # call with 1 arg
+t1 = call factorial [1]
 result = t1
 print result
 ```
@@ -136,4 +173,4 @@ L0:
 L1:
 ```
 
-Run `python main.py --tac <file>` to see the full TAC for any program.
+Run `python main.py --tac <file>` or tick *Show TAC* in the web UI to inspect the generated code.

@@ -39,8 +39,8 @@ because it uses an LALR(1) parser, just like yacc.
 Each grammar action constructs an AST node from ast_nodes.py.
 """
 from sly import Parser
-from lexer import PLLexer
-import ast_nodes as A
+from .lexer import PLLexer
+from . import ast_nodes as A
 
 
 class PLParser(Parser):

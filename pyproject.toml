@@ -6,4 +6,5 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "sly>=0.5",
+    "flask>=3.0",
 ]

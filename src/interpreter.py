@@ -22,7 +22,7 @@ Operators
   <>             : inequality -> bool
 """
 
-from tac import (
+from .tac import (
     Label, Assign, BinOp, Jump, JumpIf, JumpIfNot,
     Param, Call, Return, Print, FuncBegin, FuncEnd, Lit,
 )

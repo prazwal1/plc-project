@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PL — Online Compiler</title>
+
+  <!-- CodeMirror -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/comment/comment.min.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #1e1e2e;
+      --surface:  #27273a;
+      --border:   #383850;
+      --accent:   #7c6af7;
+      --accent2:  #5a4fcf;
+      --green:    #50fa7b;
+      --red:      #ff5555;
+      --text:     #cdd6f4;
+      --muted:    #6c7086;
+      --bar:      #181825;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── top bar ── */
+    header {
+      background: var(--bar);
+      border-bottom: 1px solid var(--border);
+      padding: 0 1rem;
+      height: 52px;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      color: var(--accent);
+      margin-right: auto;
+    }
+    header h1 span { color: var(--text); font-weight: 400; }
+
+    select {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: .35rem .6rem;
+      font-size: .85rem;
+      cursor: pointer;
+    }
+    select:focus { outline: none; border-color: var(--accent); }
+
+    label.toggle {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .85rem;
+      color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    label.toggle input { accent-color: var(--accent); width: 14px; height: 14px; }
+
+    button#runBtn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: .4rem 1.1rem;
+      font-size: .9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      transition: background .15s;
+    }
+    button#runBtn:hover  { background: var(--accent2); }
+    button#runBtn:active { transform: scale(.97); }
+    button#runBtn svg { width: 14px; height: 14px; fill: currentColor; }
+
+    /* ── main split pane ── */
+    .workspace {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      flex: 1;
+    }
+    .pane + .pane { border-left: 2px solid var(--border); }
+
+    .pane-header {
+      background: var(--bar);
+      border-bottom: 1px solid var(--border);
+      padding: .4rem 1rem;
+      font-size: .75rem;
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      flex-shrink: 0;
+    }
+
+    /* CodeMirror fill the left pane */
+    .CodeMirror {
+      flex: 1;
+      height: 100%;
+      font-size: 14px;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      line-height: 1.6;
+    }
+    .editor-wrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .editor-wrap .CodeMirror { height: 100%; }
+
+    /* output pane */
+    #output {
+      flex: 1;
+      padding: 1rem 1.2rem;
+      font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+      font-size: 13.5px;
+      line-height: 1.7;
+      white-space: pre-wrap;
+      overflow-y: auto;
+      color: var(--green);
+    }
+    #output.error  { color: var(--red); }
+    #output.empty  { color: var(--muted); font-style: italic; }
+
+    /* spinner */
+    #spinner {
+      display: none;
+      align-items: center;
+      gap: .5rem;
+      padding: 1rem 1.2rem;
+      color: var(--muted);
+      font-size: .85rem;
+    }
+    #spinner.active { display: flex; }
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: bounce .8s infinite alternate;
+    }
+    .dot:nth-child(2) { animation-delay: .15s; }
+    .dot:nth-child(3) { animation-delay: .30s; }
+    @keyframes bounce { to { transform: translateY(-6px); opacity: .4; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>PL <span>Online Compiler</span></h1>
+
+  <select id="exampleSelect">
+    <option value="">Load example…</option>
+    {% for name in examples %}
+    <option value="{{ name }}">{{ name }}</option>
+    {% endfor %}
+  </select>
+
+  <label class="toggle">
+    <input type="checkbox" id="tacToggle" /> Show TAC
+  </label>
+
+  <button id="runBtn">
+    <svg viewBox="0 0 16 16"><path d="M3 2l11 6-11 6z"/></svg>
+    Run
+  </button>
+</header>
+
+<div class="workspace">
+
+  <!-- LEFT: editor -->
+  <div class="pane">
+    <div class="pane-header">Editor</div>
+    <div class="editor-wrap">
+      <textarea id="code">{{ default_source }}</textarea>
+    </div>
+  </div>
+
+  <!-- RIGHT: output -->
+  <div class="pane">
+    <div class="pane-header">Output</div>
+    <div id="spinner"><div class="dot"></div><div class="dot"></div><div class="dot"></div> Running…</div>
+    <pre id="output" class="empty">Press Run to execute your program.</pre>
+  </div>
+
+</div>
+
+<script>
+  const DEFAULT = `# Write your PL program here.
+# Types: int  float  bool  string
+# Operators: +  -  *  /   (int)
+#            +. -. *. /.  (float)
+#            ^             (string concat)
+# Comparisons: =  <>  (result is bool)
+
+def int factorial(int n) {
+    if n = 0 then { return 1; } else {
+        return n * factorial(n - 1);
+    };
+}
+
+n      = 6;
+result = factorial(n);
+print("factorial of " ^ "6 =");
+print(result);
+`;
+
+  // ── CodeMirror setup ────────────────────────────────────────────
+  const editor = CodeMirror.fromTextArea(document.getElementById('code'), {
+    mode: 'text/plain',
+    theme: 'dracula',
+    lineNumbers: true,
+    matchBrackets: true,
+    autoCloseBrackets: true,
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+    lineWrapping: false,
+    extraKeys: {
+      'Ctrl-Enter': run,
+      'Cmd-Enter':  run,
+      'Tab': cm => cm.execCommand('indentMore'),
+    },
+  });
+
+  editor.setValue(DEFAULT);
+  editor.focus();
+
+  // ── Example loader ──────────────────────────────────────────────
+  document.getElementById('exampleSelect').addEventListener('change', async function () {
+    const name = this.value;
+    if (!name) return;
+    const res  = await fetch(`/example/${encodeURIComponent(name)}`);
+    const data = await res.json();
+    editor.setValue(data.source);
+    editor.focus();
+    this.value = '';
+  });
+
+  // ── Run ─────────────────────────────────────────────────────────
+  document.getElementById('runBtn').addEventListener('click', run);
+
+  async function run() {
+    const source   = editor.getValue();
+    const show_tac = document.getElementById('tacToggle').checked;
+    const out      = document.getElementById('output');
+    const spinner  = document.getElementById('spinner');
+
+    out.textContent = '';
+    out.className   = '';
+    spinner.classList.add('active');
+
+    try {
+      const res  = await fetch('/run', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ source, show_tac }),
+      });
+      const data = await res.json();
+
+      spinner.classList.remove('active');
+
+      if (data.error) {
+        out.textContent = data.error;
+        out.className   = 'error';
+      } else if (!data.output.trim()) {
+        out.textContent = '(no output)';
+        out.className   = 'empty';
+      } else {
+        out.textContent = data.output;
+        out.className   = '';
+      }
+    } catch (err) {
+      spinner.classList.remove('active');
+      out.textContent = 'Network error: ' + err.message;
+      out.className   = 'error';
+    }
+  }
+</script>
+</body>
+</html>

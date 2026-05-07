@@ -22,7 +22,7 @@ labels and temps are globally unique -- easy to read in debug output).
 
 from dataclasses import dataclass
 from typing import Any
-import ast_nodes as A
+from . import ast_nodes as A
 
 
 # ------------------------------------------------------------------

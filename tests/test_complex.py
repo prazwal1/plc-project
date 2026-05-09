@@ -33,6 +33,7 @@ result = fib(n);
 msg = greet("world");
 area = circle_area(2.5);
 
+
 print(msg);
 print(result);
 print(area);

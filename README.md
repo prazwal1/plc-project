@@ -3,6 +3,8 @@
 A small, fully working programming language built from scratch for the PL-26 course project.  
 The pipeline goes: **source text → Lexer → Parser → Type Checker → TAC Generator → Interpreter**.
 
+**[Live Demo](https://pl-compiler.ambitiousisland-1be3b1ed.southeastasia.azurecontainerapps.io/)**
+
 ---
 
 ## Language Features

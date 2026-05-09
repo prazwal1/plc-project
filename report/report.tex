@@ -1,0 +1,921 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+\usepackage{parskip}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric, arrows.meta, positioning, fit, backgrounds}
+\usepackage{microtype}
+\usepackage{setspace}
+\usepackage{abstract}
+
+\pagestyle{plain}
+
+% ── listings: plain academic style (no background) ───────────────────────────
+\lstdefinelanguage{PL}{
+  morekeywords={def,int,float,bool,string,if,then,else,while,do,return,print,true,false},
+  sensitive=true,
+  morecomment=[l]{\#},
+  morestring=[b]",
+}
+
+\lstdefinestyle{plstyle}{
+  language=PL,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\bfseries,
+  commentstyle=\itshape\color{gray},
+  stringstyle=\color{black},
+  numberstyle=\tiny\color{gray},
+  numbers=left,
+  numbersep=10pt,
+  breaklines=true,
+  frame=lines,
+  framesep=4pt,
+  xleftmargin=1.5em,
+  showstringspaces=false,
+  tabsize=4,
+  captionpos=b,
+  aboveskip=0.8em,
+  belowskip=0.8em,
+}
+
+\lstdefinestyle{tacstyle}{
+  basicstyle=\ttfamily\small,
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  numbersep=10pt,
+  frame=lines,
+  framesep=4pt,
+  xleftmargin=1.5em,
+  breaklines=true,
+  captionpos=b,
+  aboveskip=0.8em,
+  belowskip=0.8em,
+}
+
+\lstset{style=plstyle}
+
+% ── type-rule helpers ─────────────────────────────────────────────────────────
+\newcommand{\typerule}[2]{\dfrac{\displaystyle #1}{\displaystyle #2}}
+\newcommand{\Env}{\Gamma}
+\newcommand{\proves}{\vdash}
+\newcommand{\tint}{\texttt{int}}
+\newcommand{\tfloat}{\texttt{float}}
+\newcommand{\tbool}{\texttt{bool}}
+\newcommand{\tstring}{\texttt{string}}
+
+% ── TikZ styles ───────────────────────────────────────────────────────────────
+\tikzset{
+  pipenode/.style={
+    rectangle, rounded corners=4pt,
+    draw=black, thick,
+    minimum width=2.2cm, minimum height=0.8cm,
+    text centered, font=\small\sffamily,
+    fill=gray!10,
+  },
+  arrow/.style={-{Stealth[length=6pt]}, thick},
+  annot/.style={font=\scriptsize\itshape, text=gray, align=center},
+}
+
+% ── section spacing ───────────────────────────────────────────────────────────
+\titleformat{\section}{\large\bfseries}{\thesection}{1em}{}[\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{1em}{}
+\titlespacing*{\section}{0pt}{1.8ex plus .2ex}{1ex}
+\titlespacing*{\subsection}{0pt}{1.2ex plus .2ex}{0.6ex}
+
+\setlength{\parskip}{0.5em}
+\onehalfspacing
+
+% =============================================================================
+\begin{document}
+% =============================================================================
+
+% ── Title page ────────────────────────────────────────────────────────────────
+\begin{titlepage}
+  \centering
+  \vspace*{2.5cm}
+
+  {\large\scshape Programming Language Project — PL-26\par}
+  \vspace{1.2cm}
+  \rule{\linewidth}{1.5pt}\\[0.4em]
+  {\LARGE\bfseries A Statically Typed Programming Language\par}
+  \rule{\linewidth}{1pt}\\[2cm]
+
+  {\large\itshape Group of Three\par}
+  \vspace{0.4cm}
+
+  \vspace{2cm}
+  {\large May 2025\par}
+  \vfill
+  {\small Submitted in partial fulfilment of the PL-26 course requirements.\par}
+\end{titlepage}
+
+% ── Abstract ──────────────────────────────────────────────────────────────────
+\begin{abstract}
+\noindent
+This report describes the design and implementation of a small
+statically typed programming language developed as the PL-26 course project.
+The language supports four primitive types (\tint, \tfloat, \tbool,
+\tstring), static typing with first-assignment type inference, arithmetic
+and boolean expressions with no operator overloading, the standard control
+structures, and user-defined functions with value-parameter passing.
+The implementation covers the full compilation pipeline: lexical analysis,
+LALR(1) parsing, type checking with inference, three-address code generation,
+and interpretation. A browser-based online compiler is also provided.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% =============================================================================
+\section{Introduction}
+% =============================================================================
+
+Programming language implementation is one of the central topics in computer
+science education. This project required building a complete, runnable
+programming language satisfying a concrete specification: static typing,
+no overloading, four base types, the standard imperative control structures,
+and user-defined functions with value-parameter passing.
+
+The result is a complete language implementation built entirely in Python~3.12
+using the \textit{sly} parser library. The system is structured as a classical
+compilation pipeline in which each stage transforms the program into a
+progressively lower-level representation before execution.
+
+\subsection{Pipeline Overview}
+
+Figure~\ref{fig:pipeline} shows the six stages of the pipeline and the data
+structures passed between them.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.55cm and 1.5cm]
+
+  % Row 1: Source -> Lexer -> Parser -> Type Checker
+  \node[pipenode] (src) {Source Text};
+  \node[pipenode, right=of src] (lex) {Lexer};
+  \node[pipenode, right=of lex] (par) {Parser};
+  \node[pipenode, right=of par] (tc)  {Type Checker};
+
+  % Row 2 (below tc, snaking back left): TAC Generator -> Interpreter
+  \node[pipenode, below=1.2cm of tc]  (tac) {TAC Generator};
+  \node[pipenode, left=of tac]        (int) {Interpreter};
+
+  % Row 1 arrows
+  \draw[arrow] (src) -- node[annot, above] {chars}   (lex);
+  \draw[arrow] (lex) -- node[annot, above] {tokens}  (par);
+  \draw[arrow] (par) -- node[annot, above] {AST}     (tc);
+
+  % Turn arrow: tc down to tac
+  \draw[arrow] (tc)  -- node[annot, right] {typed AST} (tac);
+
+  % Row 2 arrows
+  \draw[arrow] (tac) -- node[annot, above] {TAC list} (int);
+
+  % Output label
+  \node[annot, left=0.6cm of int] {output};
+  \draw[arrow] (int.west) -- +(-0.5,0);
+
+\end{tikzpicture}
+\caption{The compilation pipeline. Stages are connected by the data structures they pass between them.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Design Goals}
+
+The language was designed with three explicit goals derived from the
+specification:
+\begin{enumerate}
+  \item \textbf{Static, inferred typing.} Every variable has a fixed type
+        determined at compile time from its first assignment — no type
+        annotations are written by the programmer.
+  \item \textbf{No overloading.} Separate operator symbols for integer, float,
+        and string operations eliminate ambiguity and make type inference
+        purely syntax-directed.
+  \item \textbf{Clarity of the intermediate representation.} Three-address code
+        is generated as an explicit, human-readable intermediate form before
+        execution, separating code generation from interpretation.
+\end{enumerate}
+
+% =============================================================================
+\section{Language Overview}
+% =============================================================================
+
+\subsection{Types}
+
+The language provides four primitive types. There are no compound or
+user-defined types.
+
+\begin{center}
+\begin{tabular}{llp{5cm}}
+\toprule
+\textbf{Keyword} & \textbf{Type} & \textbf{Example literals} \\
+\midrule
+\texttt{int}    & Integer          & \texttt{0}, \texttt{42}, \texttt{-7} \\
+\texttt{float}  & Floating-point   & \texttt{3.14}, \texttt{0.5}, \texttt{100.0} \\
+\texttt{bool}   & Boolean          & \texttt{true}, \texttt{false} \\
+\texttt{string} & Character string & \texttt{"hello"}, \texttt{"world"} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Variables are not declared. A variable's type is inferred from its first
+assignment and remains fixed for the rest of its scope (see Section~\ref{sec:typesystem}).
+
+\subsection{Operators and Precedence}
+
+The absence of overloading is the defining syntactic property of the language. Each
+domain has its own operator symbols, and the grammar enforces the correct
+domain at parse time.
+
+\begin{center}
+\begin{tabular}{lllc}
+\toprule
+\textbf{Operators} & \textbf{Domain} & \textbf{Result} & \textbf{Precedence} \\
+\midrule
+\texttt{*} \ \ \texttt{/}         & \tint $\times$ \tint         & \tint    & high \\
+\texttt{+} \ \ \texttt{-}         & \tint $\times$ \tint         & \tint    & low \\
+\texttt{*.} \ \texttt{/.}         & \tfloat $\times$ \tfloat     & \tfloat  & high \\
+\texttt{+.} \ \texttt{-.}         & \tfloat $\times$ \tfloat     & \tfloat  & low \\
+\texttt{\^{}}                     & \tstring $\times$ \tstring   & \tstring & low \\
+\texttt{=} \ \ \texttt{<>}        & $\tau \times \tau$           & \tbool   & non-associative \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Multiplication and division bind more tightly than addition and subtraction,
+following standard mathematical convention. Comparison operators are
+non-associative: writing \texttt{a = b = c} is a syntax error, enforcing the
+specification requirement that boolean expressions compare exactly two
+arithmetic expressions.
+
+\subsection{Statements}
+
+\begin{description}[style=nextline, leftmargin=2.5cm, labelwidth=2.3cm]
+  \item[Assignment] \texttt{x = expr;}
+        \hfill The first occurrence infers the variable's type.
+  \item[If-then-else] \texttt{if bexpr then \{ \ldots \} else \{ \ldots \};}
+  \item[While] \texttt{while bexpr do \{ \ldots \};}
+  \item[Print] \texttt{print(expr);}
+        \hfill Accepts any type.
+  \item[Return] \texttt{return expr;}
+        \hfill Inside a function body only.
+\end{description}
+
+\subsection{Functions}
+
+Functions are declared before top-level statements using the \texttt{def}
+keyword. Parameters are passed \emph{by value}: the callee receives a copy of
+each argument, so assignments to parameters inside the function body have no
+effect on the caller. Recursion is fully supported.
+
+\begin{lstlisting}[caption={Function declaration syntax}]
+def int factorial(int n) {
+    if n = 0 then { return 1; } else {
+        return n * factorial(n - 1);
+    };
+}
+\end{lstlisting}
+
+% =============================================================================
+\section{Grammar}
+% =============================================================================
+
+\subsection{Design Principles}
+
+The grammar was designed so that:
+\begin{itemize}
+  \item Operator precedence is encoded structurally through grammar layering
+        (\texttt{expr} $\to$ \texttt{term} $\to$ \texttt{atom}), with no
+        need for external precedence declarations in the parser.
+  \item Boolean expressions (\texttt{bexpr}) are a distinct nonterminal from
+        arithmetic expressions (\texttt{expr}), making it syntactically
+        impossible to use a comparison result as an arithmetic operand.
+  \item The grammar is LALR(1): it can be parsed by a one-token lookahead
+        shift-reduce parser with no ambiguity.
+\end{itemize}
+
+\subsection{Complete Context-Free Grammar}
+
+\begin{lstlisting}[style=tacstyle, numbers=none,
+  caption={Complete grammar of PL (BNF notation)}]
+program    -> def_list stmt_list
+
+def_list   -> def def_list  |  (empty)
+
+def        -> DEF type ID ( param_list ) { stmt_list }
+            | DEF type ID (            ) { stmt_list }
+
+param_list -> type ID , param_list  |  type ID
+
+type       -> INT | FLOAT | BOOL | STRING
+
+stmt_list  -> stmt ; stmt_list  |  (empty)
+
+stmt       -> ID = bexpr
+            | IF bexpr THEN { stmt_list } ELSE { stmt_list }
+            | WHILE bexpr DO { stmt_list }
+            | PRINT ( bexpr )
+            | RETURN bexpr
+
+bexpr      -> expr = expr
+            | expr <> expr
+            | expr
+
+expr       -> expr +  term        (* integer addition       *)
+            | expr -  term        (* integer subtraction    *)
+            | expr +. term        (* float addition         *)
+            | expr -. term        (* float subtraction      *)
+            | expr ^  term        (* string concatenation   *)
+            | term
+
+term       -> term *  atom        (* integer multiplication *)
+            | term /  atom        (* integer division       *)
+            | term *. atom        (* float multiplication   *)
+            | term /. atom        (* float division         *)
+            | atom
+
+atom       -> INT_LIT | FLOAT_LIT | STRING_LIT
+            | TRUE | FALSE
+            | ID
+            | ID ( arg_list )  |  ID ( )
+            | ( bexpr )
+
+arg_list   -> bexpr , arg_list  |  bexpr
+\end{lstlisting}
+
+\subsection{Lexical Specification}
+
+The lexer is built with \textbf{sly} using regular expressions. Token rules
+are declared in priority order because sly applies longest-match and
+declaration-order when resolving ambiguities.
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Token} & \textbf{Regular expression} \\
+\midrule
+\texttt{FLOAT\_LIT}  & \verb|[0-9]+\.[0-9]+| \\
+\texttt{INT\_LIT}    & \verb|[0-9]+| \\
+\texttt{STRING\_LIT} & \verb|"([^"\\]|\\.)*"| \\
+\texttt{ID}          & \verb|[A-Za-z][A-Za-z0-9_]*| \\
+\texttt{FPLUS / FMINUS / FTIMES / FDIVIDE} & \verb|\+\. | \verb|-\. | \verb|\*\. | \verb|/\.| \\
+\texttt{NE}          & \verb|<>| \\
+Comments             & \verb|#.*| (discarded) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Priority notes.}
+\texttt{FLOAT\_LIT} is declared before \texttt{INT\_LIT} so that
+\texttt{3.14} is a single float token rather than \texttt{INT(3)},
+\texttt{DOT}, \texttt{INT(14)}. Similarly, dotted operators (\texttt{+.}) are
+declared before their plain counterparts (\texttt{+}) so the longer match wins.
+Keywords (\texttt{if}, \texttt{while}, \texttt{def}, etc.) are recognised by
+matching \texttt{ID} first and then reclassifying the token if it appears in
+the keyword table — the standard Lex idiom.
+
+% =============================================================================
+\section{Type System and Type Inference}
+\label{sec:typesystem}
+% =============================================================================
+
+\subsection{Motivation}
+
+The specification imposes two requirements that are in tension:
+\emph{static} typing (all types known before execution) and \emph{no explicit
+declarations} (the programmer never writes a type annotation for a variable).
+The standard resolution is \textbf{type inference}: the compiler deduces each
+variable's type from the program text.
+
+Because PL is monomorphic — every operator has exactly one fixed signature —
+inference is entirely syntax-directed and decidable in a single bottom-up pass
+over the AST. There is no need for unification or constraint solving.
+
+\subsection{Type Environments}
+
+The type checker maintains two environments:
+
+\begin{itemize}
+  \item $\Env_{\mathrm{var}}$: a \emph{scoped stack} of dictionaries, each
+        mapping variable names to types. The global scope sits at the bottom;
+        entering a function body pushes a new scope and leaving it pops that
+        scope. This gives correct lexical scoping without inheritance between
+        caller and callee.
+  \item $\Env_{\mathrm{func}}$: a flat dictionary mapping each function name to
+        its signature $(\tau_{\mathrm{ret}},\,[\tau_1,\ldots,\tau_n])$.
+\end{itemize}
+
+\subsection{Algorithm}
+
+The algorithm proceeds in two passes over the program AST.
+
+\paragraph{Pass 1 — signature collection.}
+Before examining any function body, every \texttt{def} node is scanned to
+populate $\Env_{\mathrm{func}}$ with the declared return type and parameter
+types. This single step allows mutually recursive functions: the body of
+\texttt{f} may call \texttt{g} and vice versa, because both signatures are
+known before either body is type-checked.
+
+\paragraph{Pass 2 — body checking and annotation.}
+Each function body is checked in isolation with a fresh variable scope
+pre-populated with its parameter bindings. The top-level statement list is
+checked in the global scope. During this pass every expression node is
+\emph{annotated} in place with a \texttt{.type} attribute so that the TAC
+generator can read inferred types without re-deriving them.
+
+\subsection{Typing Rules}
+
+\subsubsection*{Literals}
+
+Literals have self-evident types; no environment lookup is required.
+
+\[
+\typerule{}{\Env \proves n : \tint}
+\qquad
+\typerule{}{\Env \proves f : \tfloat}
+\qquad
+\typerule{}{\Env \proves \texttt{"s"} : \tstring}
+\qquad
+\typerule{}{\Env \proves \texttt{true} : \tbool}
+\qquad
+\typerule{}{\Env \proves \texttt{false} : \tbool}
+\]
+
+\subsubsection*{Variable use}
+
+\[
+\typerule{x \in \Env_{\mathrm{var}} \quad \Env_{\mathrm{var}}(x) = \tau}
+         {\Env \proves x : \tau}
+\]
+
+A variable that has never been assigned is a static error.
+
+\subsubsection*{Assignment and type inference}
+
+There are two cases. If the variable is new in the current scope, its type is
+inferred from the right-hand side and recorded. If it already exists, the
+right-hand side must match the stored type.
+
+\[
+\typerule{x \notin \Env_{\mathrm{var}} \quad \Env \proves e : \tau}
+         {\Env \proves (x = e) \quad;\quad \Env_{\mathrm{var}}[x \mapsto \tau]}
+\qquad
+\typerule{x \in \Env_{\mathrm{var}} \quad \Env_{\mathrm{var}}(x) = \tau \quad \Env \proves e : \tau}
+         {\Env \proves (x = e)}
+\]
+
+\subsubsection*{Arithmetic operators}
+
+Each operator family is typed independently with no overloading.
+
+\[
+\typerule{\Env \proves e_1 : \tint \quad \Env \proves e_2 : \tint \quad
+          \mathit{op} \in \{+,-,*,/\}}
+         {\Env \proves e_1\ \mathit{op}\ e_2 : \tint}
+\]
+
+\[
+\typerule{\Env \proves e_1 : \tfloat \quad \Env \proves e_2 : \tfloat \quad
+          \mathit{op} \in \{+.,\text{-}.,*.,/.\}}
+         {\Env \proves e_1\ \mathit{op}\ e_2 : \tfloat}
+\]
+
+\[
+\typerule{\Env \proves e_1 : \tstring \quad \Env \proves e_2 : \tstring}
+         {\Env \proves e_1\ \texttt{\^{}}\ e_2 : \tstring}
+\]
+
+\subsubsection*{Boolean (comparison) expressions}
+
+Comparisons are defined only between arithmetic values of the same type.
+
+\[
+\typerule{\Env \proves e_1 : \tau \quad \Env \proves e_2 : \tau \quad
+          \tau \in \{\tint, \tfloat\} \quad \mathit{op} \in \{=,<>\}}
+         {\Env \proves e_1\ \mathit{op}\ e_2 : \tbool}
+\]
+
+\subsubsection*{Control-flow statements}
+
+The condition of both \texttt{if} and \texttt{while} must be of type \tbool.
+
+\[
+\typerule{\Env \proves e : \tbool \quad \Env \proves S_1 \quad \Env \proves S_2}
+         {\Env \proves \texttt{if}\ e\ \texttt{then}\ \{S_1\}\ \texttt{else}\ \{S_2\}}
+\qquad
+\typerule{\Env \proves e : \tbool \quad \Env \proves S}
+         {\Env \proves \texttt{while}\ e\ \texttt{do}\ \{S\}}
+\]
+
+\subsubsection*{Function calls and return}
+
+\[
+\typerule{\Env_{\mathrm{func}}(f) = (\tau_{\mathrm{ret}}, [\tau_1,\ldots,\tau_n])
+          \quad \Env \proves e_i : \tau_i \;\; \forall i}
+         {\Env \proves f(e_1,\ldots,e_n) : \tau_{\mathrm{ret}}}
+\]
+
+\[
+\typerule{\Env \proves e : \tau_{\mathrm{ret}}}
+         {\Env \proves \texttt{return}\ e}
+\quad \text{(inside a function declared to return $\tau_{\mathrm{ret}}$)}
+\]
+
+\subsection{Static Errors Detected}
+
+The type checker raises a \texttt{TypeErrorException} for each of the
+following violations, halting compilation before any code is generated:
+
+\begin{itemize}
+  \item Use of a variable before its first assignment.
+  \item Reassignment of a variable with a value of a different type.
+  \item Applying an operator to operands of the wrong type
+        (e.g.\ \texttt{1 +. 2} applies a float operator to integer literals).
+  \item Comparing values of different types, or comparing non-arithmetic
+        values (\tstring{} or \tbool).
+  \item Calling a function with the wrong number of arguments or with
+        arguments of incorrect type.
+  \item A \texttt{return} expression whose type differs from the function's
+        declared return type.
+  \item A non-\tbool{} expression used as an \texttt{if} or \texttt{while}
+        condition.
+\end{itemize}
+
+% =============================================================================
+\section{Implementation}
+% =============================================================================
+
+\subsection{Module Structure}
+
+Figure~\ref{fig:modules} shows the dependency graph between the six source
+modules in \texttt{src/}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  mod/.style={rectangle, draw=black, thick, rounded corners=3pt,
+              minimum width=2.6cm, minimum height=0.75cm,
+              font=\small\ttfamily, fill=gray!8},
+  dep/.style={-{Stealth[length=5pt]}, thick, gray},
+  node distance=0.7cm and 1.4cm,
+]
+  \node[mod] (ast)  {ast\_nodes};
+  \node[mod, right=of ast]  (lex)  {lexer};
+  \node[mod, right=of lex]  (par)  {parser};
+  \node[mod, below=of par]  (tc)   {type\_checker};
+  \node[mod, below=of ast]  (tac)  {tac};
+  \node[mod, below=of tac]  (interp) {interpreter};
+
+  \draw[dep] (lex)  -- (par);
+  \draw[dep] (ast)  -- (par);
+  \draw[dep] (ast)  -- (tc);
+  \draw[dep] (ast)  -- (tac);
+  \draw[dep] (tac)  -- (interp);
+  \draw[dep] (par)  -- (tc);
+  \draw[dep] (tc)   -- (tac);
+\end{tikzpicture}
+\caption{Module dependency graph. Arrows point from dependency to dependent.}
+\label{fig:modules}
+\end{figure}
+
+\subsection{Lexer}
+
+The lexer (\texttt{src/lexer.py}) is implemented using \textbf{sly}. Each
+token type is declared as a class attribute holding either a string (for a
+regular expression) or a dictionary (for the keyword remap table). The
+\texttt{ignore} and \texttt{ignore\_comment} attributes silently discard
+whitespace and \texttt{\#}-comments.
+
+\subsection{Parser}
+
+The parser (\texttt{src/parser.py}) is a sly LALR(1) parser. Grammar
+productions are written as Python methods decorated with \texttt{@\_(...)}
+where the argument is the production rule as a string.
+Left-recursive rules for \texttt{expr} and \texttt{term} give left-to-right
+associativity for arithmetic.
+Each action builds and returns an AST node; the root action returns a
+\texttt{Program} node containing all function definitions and the
+top-level statement list.
+
+\subsection{Abstract Syntax Tree}
+
+All AST nodes are Python \texttt{dataclass} instances defined in
+\texttt{src/ast\_nodes.py}. The table below lists every node type.
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+\textbf{Category} & \textbf{Node} & \textbf{Fields} \\
+\midrule
+Literals    & \texttt{IntLit}, \texttt{FloatLit}, \texttt{StringLit}, \texttt{BoolLit}
+            & \texttt{value} \\
+Expressions & \texttt{Var}    & \texttt{name} \\
+            & \texttt{BinOp}  & \texttt{op, left, right} \\
+            & \texttt{Compare}& \texttt{op, left, right} \\
+            & \texttt{Call}   & \texttt{name, args} \\
+Statements  & \texttt{Assign} & \texttt{name, expr} \\
+            & \texttt{If}     & \texttt{cond, then\_block, else\_block} \\
+            & \texttt{While}  & \texttt{cond, body} \\
+            & \texttt{Print}  & \texttt{expr} \\
+            & \texttt{Return} & \texttt{expr} \\
+Top-level   & \texttt{FuncDef}& \texttt{return\_type, name, params, body} \\
+            & \texttt{Program}& \texttt{funcs, main} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{Three-Address Code Generator}
+
+\subsubsection{Instruction Set}
+
+The TAC generator (\texttt{src/tac.py}) traverses the annotated AST and emits
+a flat list of instructions. Each instruction is a Python \texttt{dataclass}.
+
+\begin{center}
+\begin{tabular}{p{2.4cm} p{3.8cm} p{5cm}}
+\toprule
+\textbf{Instruction} & \textbf{Fields} & \textbf{Semantics} \\
+\midrule
+\texttt{Assign}    & \texttt{dest, src}             & $\mathit{dest} \leftarrow \mathit{src}$ \\
+\texttt{BinOp}     & \texttt{dest, op, left, right} & $\mathit{dest} \leftarrow \mathit{left}\ \mathit{op}\ \mathit{right}$ \\
+\texttt{Label}     & \texttt{name}                  & Declares a jump target \\
+\texttt{Jump}      & \texttt{label}                 & Unconditional transfer \\
+\texttt{JumpIf}    & \texttt{cond, label}           & Jump if \textit{cond} is \texttt{true} \\
+\texttt{JumpIfNot} & \texttt{cond, label}           & Jump if \textit{cond} is \texttt{false} \\
+\texttt{Param}     & \texttt{arg}                   & Push one call argument \\
+\texttt{Call}      & \texttt{dest, func, nargs}     & $\mathit{dest} \leftarrow \mathit{func}(\ldots)$ \\
+\texttt{Return}    & \texttt{val}                   & Return a value to caller \\
+\texttt{Print}     & \texttt{val}                   & Emit value to output \\
+\texttt{FuncBegin} & \texttt{name}                  & Function prologue marker \\
+\texttt{FuncEnd}   & \texttt{name}                  & Function epilogue marker \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Temporaries are named \texttt{t0}, \texttt{t1}, \ldots{} using a global
+counter, guaranteeing uniqueness across the whole program. Labels use the same
+scheme: \texttt{L0}, \texttt{L1}, \ldots{}
+
+Literal values are wrapped in a \texttt{Lit(value)} container before being
+stored in an \texttt{Assign.src} field. This distinguishes them from
+variable/temporary names, which are plain strings — without this wrapper,
+a string literal \texttt{"world"} would be indistinguishable from a
+variable named \texttt{world}.
+
+\subsubsection{Control-Flow Translation Schemes}
+
+\textbf{If-then-else} is translated to a conditional branch around the
+then-block and an unconditional jump over the else-block:
+
+\begin{lstlisting}[style=tacstyle, numbers=none]
+    <evaluate condition into t_c>
+    ifnot t_c goto L_else
+    <then-block instructions>
+    goto L_end
+L_else:
+    <else-block instructions>
+L_end:
+\end{lstlisting}
+
+\textbf{While} is translated with the condition check at the top of the loop:
+
+\begin{lstlisting}[style=tacstyle, numbers=none]
+L_test:
+    <evaluate condition into t_c>
+    ifnot t_c goto L_end
+    <body instructions>
+    goto L_test
+L_end:
+\end{lstlisting}
+
+\textbf{Function calls} use the \texttt{param}/\texttt{call} protocol:
+
+\begin{lstlisting}[style=tacstyle, numbers=none]
+    param a_1
+    param a_2
+    ...
+    t_r = call f [n]     (* n = number of arguments *)
+\end{lstlisting}
+
+\subsection{Interpreter}
+
+The interpreter (\texttt{src/interpreter.py}) executes the flat TAC list
+using a \textbf{program counter} (PC) that indexes into the instruction array.
+
+\paragraph{Startup scan.}
+Before execution begins, the interpreter makes a single pass over all
+instructions to build two lookup tables:
+\begin{itemize}
+  \item \texttt{label\_map}: label name $\mapsto$ instruction index.
+  \item \texttt{func\_map}: function name $\mapsto$ index of the first
+        instruction following its \texttt{FuncBegin}.
+\end{itemize}
+
+\paragraph{Main-body execution.}
+The main body is located by finding the index immediately after the last
+\texttt{FuncEnd} instruction. Execution then enters the dispatch loop.
+If a \texttt{FuncBegin} is encountered during main-body execution
+(which would happen in the pathological case of an empty function list or
+a mid-stream jump error), the interpreter fast-forwards past the matching
+\texttt{FuncEnd}.
+
+\paragraph{Function-call dispatch.}
+When a \texttt{Call} instruction is executed:
+\begin{enumerate}
+  \item The required number of values is popped from the \texttt{pending\_params}
+        list accumulated by preceding \texttt{Param} instructions.
+  \item A fresh environment \emph{frame} (a Python dict) is created and
+        populated with the mapping from parameter names to argument values.
+        Parameter names are recovered from the original AST via a
+        side-table built at startup.
+  \item The interpreter recursively calls \texttt{\_exec} starting at
+        \texttt{func\_map[f]}. Because the frame is entirely separate from
+        the caller's environment, this is pure value-parameter passing.
+\end{enumerate}
+
+\paragraph{Operator evaluation.}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+\textbf{Operator} & \textbf{Python semantics} \\
+\midrule
+\texttt{+} \texttt{-} \texttt{*}    & \texttt{l + r}, \texttt{l - r}, \texttt{l * r} (Python int) \\
+\texttt{/}           & \texttt{l // r} (floor division; error on zero) \\
+\texttt{+.} \texttt{-.} \texttt{*.} \texttt{/.} & Python float arithmetic \\
+\texttt{\^{}}        & \texttt{str(l) + str(r)} \\
+\texttt{=}           & \texttt{l == r} $\to$ \texttt{bool} \\
+\texttt{<>}          & \texttt{l != r} $\to$ \texttt{bool} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+% =============================================================================
+\section{Example Programs and Traces}
+% =============================================================================
+
+\subsection{Recursive Factorial}
+
+\begin{lstlisting}[caption={Recursive factorial function}]
+def int factorial(int n) {
+    if n = 0 then { return 1; } else {
+        return n * factorial(n - 1);
+    };
+}
+
+n      = 6;
+result = factorial(n);
+print(result);
+\end{lstlisting}
+
+The type checker verifies:
+\begin{itemize}
+  \item Parameter \texttt{n} has type \tint{} (declared).
+  \item \texttt{n = 0}: comparison of two \tint{} expressions, result \tbool{} — valid condition.
+  \item \texttt{n * factorial(n - 1)}: both operands \tint{}, operator \texttt{*} — result \tint{} — matches declared return type.
+\end{itemize}
+
+Generated TAC for the function body:
+
+\begin{lstlisting}[style=tacstyle, caption={TAC for \texttt{factorial}}]
+--- function factorial ---
+    t0 = 0
+    t1 = n = t0
+    ifnot t1 goto L0
+    t2 = 1
+    return t2
+    goto L1
+L0:
+    t3 = 1
+    t4 = n - t3
+    param t4
+    t5 = call factorial [1]
+    t6 = n * t5
+    return t6
+L1:
+--- end factorial ---
+\end{lstlisting}
+
+\subsection{Iterative While Loop}
+
+\begin{lstlisting}[caption={Computing the sum $1 + 2 + \cdots + 5$ iteratively}]
+i   = 1;
+sum = 0;
+while i <> 6 do {
+    sum = sum + i;
+    i   = i + 1;
+};
+print(sum);   # prints 15
+\end{lstlisting}
+
+Both \texttt{i} and \texttt{sum} are inferred as \tint{} from their first
+assignments. The condition \texttt{i <> 6} compares two \tint{} values,
+yielding \tbool{} — a valid while condition.
+
+\subsection{Float Arithmetic}
+
+\begin{lstlisting}[caption={Celsius-to-Fahrenheit conversion}]
+def float to_fahrenheit(float c) {
+    return c *. 1.8 +. 32.0;
+}
+
+temp = to_fahrenheit(100.0);
+print(temp);   # prints 212.0
+\end{lstlisting}
+
+The expression \texttt{c *. 1.8 +. 32.0} is evaluated left to right:
+\texttt{c *. 1.8} has type \tfloat{} (multiplication takes precedence),
+then \texttt{+. 32.0} adds a \tfloat{} literal — type-correct throughout.
+
+\subsection{String Concatenation}
+
+\begin{lstlisting}[caption={String concatenation with the \texttt{\^{}} operator}]
+first = "hello";
+last  = "world";
+msg   = first ^ ", " ^ last ^ "!";
+print(msg);   # prints hello, world!
+\end{lstlisting}
+
+\subsection{Type Error Detection}
+
+The following program is rejected at the type-checking phase before any code
+is generated:
+
+\begin{lstlisting}[caption={Program rejected by the type checker}]
+x = 1 +. 2;
+\end{lstlisting}
+
+\begin{lstlisting}[style=tacstyle, numbers=none]
+Type error: operator '+.' requires float operands, got 'int' and 'int'.
+\end{lstlisting}
+
+% =============================================================================
+\section{Online Compiler}
+% =============================================================================
+
+A browser-based compiler interface is included in \texttt{web/}, providing
+access to the full pipeline without any local installation. The architecture
+is as follows.
+
+\paragraph{Backend.}
+A \textbf{Flask} application (\texttt{web/app.py}) exposes two HTTP
+endpoints. \texttt{GET /} serves the single-page UI.
+\texttt{POST /run} accepts a JSON body containing the source text and a
+boolean \texttt{show\_tac} flag, runs the full pipeline with standard output
+redirected to a string buffer, and returns the captured output (or error
+message) as JSON.
+
+\paragraph{Frontend.}
+The single-page interface (\texttt{web/templates/index.html}) is built with
+plain HTML, CSS, and JavaScript. It embeds \textbf{CodeMirror~5} (loaded from
+CDN) as the code editor, providing syntax highlighting, line numbers, and
+bracket matching. A \emph{Load example} dropdown populates the editor with any
+program from the \texttt{examples/} directory. Pressing \textbf{Run} (or
+\texttt{Ctrl+Enter}) sends the editor contents to \texttt{/run} via the
+Fetch~API and displays the result in the output pane. The \emph{Show TAC}
+checkbox switches the output pane to display the generated three-address code
+instead of the program's runtime output.
+
+% =============================================================================
+\section{Conclusion}
+% =============================================================================
+
+This report has presented a complete statically typed programming language
+implemented in approximately 600 lines of Python across six modules.
+All requirements stated in the PL-26 specification have been met:
+
+\begin{enumerate}
+  \item \textbf{Types.} Integer, float, boolean, and string types are supported
+        with dedicated literal syntax and runtime representations.
+  \item \textbf{Static typing with inference.} Every variable receives a type
+        at compile time from its first assignment; no declarations are required.
+        The type checker enforces consistency for all subsequent uses.
+  \item \textbf{No overloading.} Separate operator families for each numeric
+        domain make type inference syntax-directed and unambiguous.
+  \item \textbf{Boolean expressions.} The \texttt{=} and \texttt{<>} operators
+        compare two arithmetic values and produce a \tbool{} result.
+        Chaining comparisons is rejected at parse time.
+  \item \textbf{Control structures.} Assignment, if-then-else, and while-do are
+        fully implemented and tested.
+  \item \textbf{Functions with value passing.} User-defined functions with typed
+        parameters are supported; the interpreter creates a fresh environment
+        frame per call, guaranteeing isolation between caller and callee.
+  \item \textbf{Print.} The built-in \texttt{print} statement accepts any type.
+\end{enumerate}
+
+Beyond the specification, the project includes an explicit three-address code
+intermediate representation, a browser-based online compiler, and a
+structured set of six standalone example programs demonstrating each language
+feature independently.
+
+\end{document}

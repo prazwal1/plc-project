@@ -28,10 +28,11 @@ def float circle_area(float r) {
 }
 
 # Main program
-n = 10;
+n = 15;
 result = fib(n);
 msg = greet("world");
 area = circle_area(2.5);
+
 
 print(msg);
 print(result);

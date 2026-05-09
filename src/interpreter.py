@@ -245,4 +245,4 @@ def make_interpreter(instructions: list, program) -> Interpreter:
         for f in program.funcs
     }
     return interp
- Abramov
+

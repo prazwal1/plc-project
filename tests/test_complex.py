@@ -28,7 +28,7 @@ def float circle_area(float r) {
 }
 
 # Main program
-n = 15;
+n = 10;
 result = fib(n);
 msg = greet("world");
 area = circle_area(2.5);

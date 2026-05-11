@@ -2,6 +2,15 @@
 
 This guide is designed to help you prepare for the compiler project evaluation/test section. It details how language changes propagate through the 6-stage pipeline of the **PL** programming language, lists the most common hands-on modification tasks, and compiles core theoretical questions you may be asked.
 
+Ask yourself:
+1. does it introduce a new character or word? Yes: Edit lexer.py
+2. does it have structure? Add a database to ast_nodes.py and add a grammar rule in parser.py
+3. doest it have meaning/logic? Add logic to type_checker.py
+4. does it have rules about types? Add logic to type_checker.py with isinstance checking.
+5. does it change execution? edit tac.py (for structure flatter) and interpreter.py (for dynamic operation result).
+6. Does it requireTAC generation? Add TAC generation to tac.py
+7. Does it require execution? Add execution logic to interpreter.py
+
 ---
 
 ## The 6-Stage Pipeline Overview
@@ -199,3 +208,19 @@ Testing control-flow jump layout generation in TAC.
     2. When `Call` is executed, it pops the last `nargs` elements from `pending_params`.
     3. It creates an isolated environment frame mapping the function's formal parameter names to these popped values.
     4. It executes the function starting from its entry address in `func_map`, returning when a `Return` instruction is reached.
+
+### Q5: What is the difference between an Abstract Syntax Tree (AST) and Three-Address Code (TAC)?
+* **Answer**: 
+  * The **AST** is a high-level, recursive tree structure. It contains nested structures like loops and expressions directly, prioritizing syntax preservation and high-level semantics (used for type checking).
+  * **TAC** is a low-level, flat Intermediate Representation (IR). It breaks down all nested expressions into sequential register-like instructions (`t0 = a + b`) and flattens control loops into memory labels and direct jumps (`goto L1`). It is one step above raw Assembly.
+
+### Q6: Did you deal with any Shift-Reduce conflicts? How does your parser handle ambiguous chains?
+* **Answer**: 
+  * We handled ambiguity primarily through grammar layering (which gives implicit precedence). 
+  * However, for boolean operators where `a = b = c` is syntactically ambiguous, we used explicitly defined precedence rules: `precedence = (('nonassoc', '=', NE),)`. Setting them to **nonassoc** causes the parser to strictly ban chaining without explicitly needing deeper grammar nesting.
+
+### Q7: How does your language support recursive function calls?
+* **Answer**: 
+  * Support is natively derived through dynamic stack frames in `src/interpreter.py`. 
+  * Every time a function is called (even recursively), the `_call_func` method initiates a completely distinct Python dictionary frame mapping that function's locals.
+  * Because each call context is physically separate in host memory, values don't corrupt, and Python's host call-stack manages the unwinding sequence perfectly.

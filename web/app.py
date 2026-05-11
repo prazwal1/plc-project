@@ -37,9 +37,13 @@ def index():
 
 @app.route('/example/<name>')
 def get_example(name):
-    if name not in EXAMPLES:
+    # Prevents caching issues by reading the file live from disk every click!
+    filepath = os.path.join(EXAMPLES_DIR, name)
+    if not os.path.isfile(filepath) or not name.endswith('.pl'):
         return jsonify({'error': 'not found'}), 404
-    return jsonify({'source': EXAMPLES[name]})
+    with open(filepath, 'r') as f:
+        content = f.read()
+    return jsonify({'source': content})
 
 
 @app.route('/run', methods=['POST'])

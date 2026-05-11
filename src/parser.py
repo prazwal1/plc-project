@@ -134,7 +134,8 @@ class PLParser(Parser):
         return A.Return(expr=p.bexpr)
 
     # ------------------------------------------------------------------
-    # Boolean expression (= or <>) -- Lowest expression layer (evaluated last)
+    # PRECEDENCE LEVEL 1: LOWEST PRECEDENCE (Evaluated Last) !!!!!!!!!!!!!!!!!
+    # Boolean expression (= or <>) 
     # ------------------------------------------------------------------
 
     @_('expr "=" expr')
@@ -153,6 +154,7 @@ class PLParser(Parser):
         return p.expr
 
     # ------------------------------------------------------------------
+    # PRECEDENCE LEVEL 2: LOW PRECEDENCE !!!!!!!!!!!!!!!!!
     # Additive expressions (+, -, float ops, string concatenation)
     # ------------------------------------------------------------------
 
@@ -175,7 +177,8 @@ class PLParser(Parser):
     def expr(self, p): return p.term
 
     # ------------------------------------------------------------------
-    # Multiplicative expressions (*, /, float ops) -- Evaluated before expr
+    # PRECEDENCE LEVEL 3: MEDIUM-HIGH PRECEDENCE!!!!!!!!!!!!!!!!!
+    # Multiplicative expressions (*, /, float ops) -- Evaluated before Level 2
     # ------------------------------------------------------------------
 
     @_('term "*" atom')
@@ -194,7 +197,8 @@ class PLParser(Parser):
     def term(self, p): return p.atom
 
     # ------------------------------------------------------------------
-    # Atoms (Base level - constants, identifiers, function calls, sub-expressions)
+    # PRECEDENCE LEVEL 4: HIGHEST PRECEDENCE
+    # Atoms (Constants, identifiers, and bracketed sub-expressions)
     # ------------------------------------------------------------------
 
     @_('INT_LIT')

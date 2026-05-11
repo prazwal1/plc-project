@@ -3,6 +3,35 @@
 #                  assignment spec, in the order the spec lists them.
 # ================================================================
 
+# ----------------------------------------------------------------
+# 7. FUNCTIONS (value parameter passing)
+#    IMPORTANT: Functions MUST be placed at the top of the script!
+#    Parameters are copies -- mutating them inside the function
+#    does not affect the caller.
+# ----------------------------------------------------------------
+
+def int factorial(int n) {
+    if n = 0 then {
+        return 1;
+    } else {
+        return n * factorial(n - 1);
+    };
+}
+
+def float celsius_to_fahrenheit(float c) {
+    return c *. 1.8 +. 32.0;
+}
+
+def string repeat(string s, int times) {
+    result = "";
+    i = 0;
+    while i <> times do {
+        result = result ^ s;
+        i = i + 1;
+    };
+    return result;
+}
+
 
 # ----------------------------------------------------------------
 # 1. TYPES  (int, float, bool, string)
@@ -58,9 +87,7 @@ print(neq_test);
 #    the inferred type for the rest of the program.
 # ----------------------------------------------------------------
 
-x = 100;
-x = x - 1;
-print(x);
+# Example 4 executes automatically as part of variables above!
 
 
 # ----------------------------------------------------------------
@@ -89,32 +116,8 @@ print(sum);
 
 
 # ----------------------------------------------------------------
-# 7. FUNCTIONS  (value parameter passing)
-#    Parameters are copies -- mutating them inside the function
-#    does not affect the caller.
+# Function Tests (Executing the logic declared at top)
 # ----------------------------------------------------------------
-
-def int factorial(int n) {
-    if n = 0 then {
-        return 1;
-    } else {
-        return n * factorial(n - 1);
-    };
-}
-
-def float celsius_to_fahrenheit(float c) {
-    return c *. 1.8 +. 32.0;
-}
-
-def string repeat(string s, int times) {
-    result = "";
-    i = 0;
-    while i <> times do {
-        result = result ^ s;
-        i = i + 1;
-    };
-    return result;
-}
 
 # Value-passing demo: n inside factorial is a copy.
 n  = 6;

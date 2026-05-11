@@ -16,11 +16,12 @@ class PLLexer(Lexer):
     # --- Token names (uppercase identifiers required by sly) ----------------
     tokens = {
         # Literals
-        FLOAT_LIT, INT_LIT, STRING_LIT,
+        INT_LIT, FLOAT_LIT,  STRING_LIT,
         # Identifiers and keywords
         ID,
         DEF, INT, FLOAT, BOOL, STRING,
-        IF, THEN, ELSE, WHILE, DO,
+        IF,
+          THEN, ELSE, WHILE, DO,
         TRUE, FALSE,
         PRINT, RETURN,
         # Multi-character operators
@@ -61,6 +62,7 @@ class PLLexer(Lexer):
 
     # Identifier: letter (letter | digit | _)*
     ID       = r'[A-Za-z][A-Za-z0-9_]*'
+    
 
     # ------------------------------------------------------------------------
     # Token actions: convert lexeme strings into Python values where useful,
